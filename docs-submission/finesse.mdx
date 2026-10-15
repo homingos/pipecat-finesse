@@ -1,0 +1,192 @@
+---
+title: "Finesse Text-to-Speech"
+sidebarTitle: "Finesse"
+description: "Stream low-latency speech in 60 languages, including 22 Indian languages, to a Pipecat pipeline with FinesseTTSService."
+---
+
+import { CommunityMaintained } from "/snippets/community-maintained.mdx";
+
+<CommunityMaintained
+  maintainer="Flam"
+  maintainerUrl="https://finesse.flamapp.ai"
+  repo="https://github.com/homingos/pipecat-finesse"
+/>
+
+## Overview
+
+`FinesseTTSService` streams speech from [Finesse](https://finesse.flamapp.ai) over its realtime
+WebSocket. Use it when your voice agent needs a fast, natural voice in English or an Indian
+language, or a voice cloned from your own recording.
+
+- About 0.4 seconds to first audio on the production API.
+- Each LLM turn is one Finesse context, so prosody carries across sentences.
+- On an interruption, the turn is cancelled on the server and the connection stays open.
+- Works at any pipeline sample rate: Finesse synthesizes at 24 kHz and the service resamples for
+  16 kHz and 8 kHz (telephony) pipelines.
+
+<CardGroup cols={2}>
+  <Card
+    title="Source Repository"
+    icon="github"
+    href="https://github.com/homingos/pipecat-finesse"
+  >
+    Package source, the example voice agent, and issue tracker
+  </Card>
+  <Card
+    title="PyPI Package"
+    icon="cube"
+    href="https://pypi.org/project/pipecat-finesse/"
+  >
+    The `pipecat-finesse` package on PyPI
+  </Card>
+  <Card
+    title="Finesse API docs"
+    icon="book"
+    href="https://docs.finesse.flamapp.ai/voice-api/realtime-websocket"
+  >
+    The realtime WebSocket the service speaks
+  </Card>
+  <Card
+    title="API Keys"
+    icon="key"
+    href="https://finesse.flamapp.ai/dashboard"
+  >
+    Create keys under Settings → API keys
+  </Card>
+</CardGroup>
+
+## Installation
+
+Install the community package. It is published separately from `pipecat-ai`:
+
+```bash
+uv add pipecat-finesse
+```
+
+## Prerequisites
+
+### Account and API key
+
+1. Create an account at [Finesse](https://finesse.flamapp.ai)
+2. In the dashboard, open **Settings → API keys** and create a key. Keys look like `flv_...`
+
+Set it in the environment:
+
+```bash
+export FINESSE_API_KEY="flv_..."
+```
+
+### Voice
+
+Pick a voice in the dashboard's voice library, or clone your own, and copy its voice id (24
+characters). You can also list voices with
+`GET https://fi.production.flamapis.com/flam-voice-svc/api/v1/public/voices`.
+
+## Configuration
+
+<ParamField path="api_key" type="str" default="None">
+  Finesse API key. If omitted, the service reads `FINESSE_API_KEY`.
+</ParamField>
+
+<ParamField path="settings" type="FinesseTTSService.Settings" default="None">
+  Voice, language, and synthesis options. See [Settings](#settings).
+</ParamField>
+
+<ParamField
+  path="url"
+  type="str"
+  default="wss://fi.production.flamapis.com/flam-voice-svc/api/v1/public/stream"
+>
+  Realtime WebSocket URL. Override this only for a non-production Finesse endpoint.
+</ParamField>
+
+<ParamField path="sample_rate" type="int" default="None">
+  Output rate in Hz. Leave unset to use the pipeline's output sample rate.
+</ParamField>
+
+<ParamField path="idle_flush_ms" type="int" default="None">
+  How long the server waits for more text before speaking a partial sentence (200-5000 ms;
+  server default 800).
+</ParamField>
+
+<ParamField path="client_name" type="str" default="None">
+  Added to the `X-Finesse-Client` header, so you can tell your apps apart in Finesse analytics.
+</ParamField>
+
+### Settings
+
+Pass these through `FinesseTTSService.Settings(...)`. Voice and language apply per turn: a change
+takes effect from the next turn.
+
+| Parameter        | Type       | Default        | Description                                        |
+| ---------------- | ---------- | -------------- | -------------------------------------------------- |
+| `voice`          | `str`      | required       | Finesse voice id.                                  |
+| `language`       | `Language` | `Language.EN`  | Language of the text. See the table below.         |
+| `num_step`       | `int`      | server default | 1-32: quality vs latency.                          |
+| `guidance_scale` | `float`    | server default | 0-10.                                              |
+| `length_scale`   | `float`    | server default | Speaking rate; higher is slower (up to 5).         |
+
+### Languages
+
+Finesse supports 60 languages. Common ones:
+
+| Language | Pipecat `Language` | Language | Pipecat `Language` |
+| -------- | ------------------ | -------- | ------------------ |
+| English  | `Language.EN`      | Tamil    | `Language.TA`      |
+| Hindi    | `Language.HI`      | Telugu   | `Language.TE`      |
+| Bengali  | `Language.BN`      | Kannada  | `Language.KN`      |
+| Marathi  | `Language.MR`      | Malayalam| `Language.ML`      |
+| Gujarati | `Language.GU`      | Odia     | `Language.OR`      |
+
+<Note>
+  The full list of languages and voices is in the [Finesse
+  docs](https://docs.finesse.flamapp.ai/concepts/voices).
+</Note>
+
+## Usage
+
+```python
+import os
+
+from pipecat.pipeline.pipeline import Pipeline
+from pipecat.pipeline.worker import PipelineWorker
+from pipecat.transcriptions.language import Language
+from pipecat_finesse import FinesseTTSService
+
+tts = FinesseTTSService(
+    api_key=os.getenv("FINESSE_API_KEY"),
+    settings=FinesseTTSService.Settings(
+        voice=os.getenv("FINESSE_VOICE_ID"),
+        language=Language.EN,
+    ),
+)
+
+pipeline = Pipeline(
+    [
+        transport.input(),
+        stt,
+        user_aggregator,
+        llm,
+        tts,
+        transport.output(),
+        assistant_aggregator,
+    ]
+)
+worker = PipelineWorker(pipeline)
+```
+
+To speak Hindi, change the language:
+
+```python
+tts = FinesseTTSService(
+    settings=FinesseTTSService.Settings(
+        voice=os.getenv("FINESSE_VOICE_ID"),
+        language=Language.HI,
+    ),
+)
+```
+
+## Compatibility
+
+Last tested with Pipecat v1.12.0 (`pipecat-ai>=1.12,<2`). See the
+[changelog](https://github.com/homingos/pipecat-finesse/blob/main/CHANGELOG.md) for updates.

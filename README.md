@@ -14,6 +14,12 @@ WebSocket:
 - **Any pipeline rate.** Finesse synthesizes at 24 kHz; 16 kHz and 8 kHz (telephony) pipelines are
   resampled for you.
 
+Maintained by [Flam](https://finesse.flamapp.ai), the company that builds Finesse.
+
+## Compatibility
+
+Tested with Pipecat v1.12.0 (`pipecat-ai>=1.12,<2`). See the [changelog](CHANGELOG.md) for updates.
+
 ## Install
 
 ```bash
