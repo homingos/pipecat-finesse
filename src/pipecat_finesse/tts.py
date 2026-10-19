@@ -398,7 +398,10 @@ class FinesseTTSService(WebsocketTTSService):
             await self._end_context_with_error(ctx_id, f"Finesse task failed: {msg.get('code')}")
         elif kind == "error":
             code, text = msg.get("code"), msg.get("message", "")
-            if ctx_id:
+            if ctx_id and ctx_id not in self._open_contexts:
+                # A task_cancel that crossed the turn's task_done: nothing is left to end.
+                logger.debug(f"{self}: ignoring Finesse error {code} for closed context {ctx_id}")
+            elif ctx_id:
                 self._open_contexts.discard(ctx_id)
                 await self._end_context_with_error(ctx_id, f"Finesse error {code}: {text}")
             else:

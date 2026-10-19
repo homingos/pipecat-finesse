@@ -32,6 +32,7 @@ class FakeFinesse:
         first_audio_delay: float = 0,
         server_cancels: bool = False,
         drop_connection: bool = False,
+        cancel_after_done: bool = False,
     ):
         self.messages: list[dict] = []
         self.headers = None
@@ -40,6 +41,7 @@ class FakeFinesse:
         self.first_audio_delay = first_audio_delay  # a slow engine, or a cold GPU
         self.server_cancels = server_cancels  # cancel the context after its first chunk
         self.drop_connection = drop_connection  # close the socket after the first chunk
+        self.cancel_after_done = cancel_after_done  # answer task_cancel as if the turn had ended
         self._cancelled: set[str] = set()
         self._audio_tasks: dict[str, list[asyncio.Task]] = {}
 
@@ -68,7 +70,20 @@ class FakeFinesse:
                 )
             if kind == "task_continue" and msg.get("finalize"):
                 asyncio.create_task(self._done(ws, ctx))
-            if kind == "task_cancel":
+            if kind == "task_cancel" and self.cancel_after_done:
+                self._cancelled.add(ctx)
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "context_id": ctx,
+                            "code": "context_not_found",
+                            "message": f"no open context '{ctx}'",
+                            "fatal": False,
+                        }
+                    )
+                )
+            elif kind == "task_cancel":
                 self._cancelled.add(ctx)
                 await ws.send(
                     json.dumps(
@@ -217,6 +232,26 @@ async def test_interruption_cancels_the_turn_on_the_server():
     starts, cancels = fake.of_type("task_start"), fake.of_type("task_cancel")
     assert len(cancels) == 1
     assert cancels[0]["context_id"] == starts[0]["context_id"]
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_that_crosses_the_end_of_the_turn_is_not_an_error():
+    # The caller talks just as the turn finishes: the server has already closed the context.
+    fake = FakeFinesse(slow=True, cancel_after_done=True)
+    _, up = await run_turn(
+        fake,
+        [
+            LLMFullResponseStartFrame(),
+            LLMTextFrame("This is a long answer that the caller will talk over. "),
+            LLMTextFrame("It keeps going"),
+            SleepFrame(0.3),
+            InterruptionFrame(),
+            SleepFrame(0.3),
+        ],
+        upstream=True,
+    )
+    assert fake.of_type("task_cancel")
+    assert not [f for f in up if isinstance(f, ErrorFrame)]
 
 
 @pytest.mark.asyncio
