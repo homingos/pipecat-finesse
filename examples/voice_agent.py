@@ -46,8 +46,8 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
 
     stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
 
-    # Finesse reads FINESSE_API_KEY. The voice is a Flam voice id from the
-    # dashboard's voice library or GET /public/voices.
+    # Finesse reads FINESSE_API_KEY. The voice is a Finesse voice id from the
+    # dashboard's voice library, or one of your cloned voices.
     tts = FinesseTTSService(
         settings=FinesseTTSService.Settings(voice=os.getenv("FINESSE_VOICE_ID")),
     )
@@ -91,7 +91,9 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
 
     @worker.rtvi.event_handler("on_client_ready")
     async def on_client_ready(rtvi):
-        context.add_message({"role": "developer", "content": "Start by briefly introducing yourself."})
+        context.add_message(
+            {"role": "developer", "content": "Start by briefly introducing yourself."}
+        )
         await worker.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")

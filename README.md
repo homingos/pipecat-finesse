@@ -6,7 +6,8 @@ Finesse streams speech in 60 languages, 22 of them Indian, from your own cloned 
 Finesse catalog. This package adds `FinesseTTSService`, which speaks over the Finesse realtime
 WebSocket:
 
-- **Low latency.** About 0.4 s to first audio on our production API (measured October 2026).
+- **Streams as the LLM writes.** Text goes to Finesse as it arrives, so speech starts before the
+  reply is finished.
 - **One context per turn.** All sentences of an LLM turn share one Finesse context, so prosody
   carries across them.
 - **Interruptions.** When the user talks over the bot, the turn is cancelled on the server and its
@@ -18,7 +19,7 @@ Maintained by [Flam](https://finesse.flamapp.ai), the company that builds Finess
 
 ## Compatibility
 
-Tested with Pipecat v1.12.0 (`pipecat-ai>=1.12,<2`). See the [changelog](CHANGELOG.md) for updates.
+Tested with Pipecat v1.12.0 and v1.13.0 (`pipecat-ai>=1.12,<2`). See the [changelog](CHANGELOG.md) for updates.
 
 ## Install
 
@@ -29,13 +30,13 @@ pip install pipecat-finesse
 ## Use
 
 ```python
+from pipecat.transcriptions.language import Language
 from pipecat_finesse import FinesseTTSService
 
-tts = FinesseTTSService(
-    api_key=os.getenv("FINESSE_API_KEY"),  # optional: read from FINESSE_API_KEY by default
+tts = FinesseTTSService(  # reads FINESSE_API_KEY
     settings=FinesseTTSService.Settings(
-        voice="6a996c5457317abcfd297003",  # a Flam voice id
-        language=Language.EN,
+        voice="<your voice id>",
+        language=Language.HI,
     ),
 )
 ```
@@ -51,15 +52,16 @@ uv run --with "pipecat-ai[deepgram,openai,runner,silero,webrtc]" examples/voice_
 ### Getting a key and a voice
 
 Create an API key in the [Finesse dashboard](https://finesse.flamapp.ai/dashboard) under
-**Settings → API keys**. Pick a voice from the dashboard's voice library, or list them with
-`GET https://fi.production.flamapis.com/flam-voice-svc/api/v1/public/voices`; use the voice's `id`.
+**Settings → API keys**. Pick a voice from the dashboard's voice library, one of your cloned voices,
+or list them with the [List voices API](https://docs.finesse.flamapp.ai/voice-api/list-voices); use
+the voice's `id`.
 
 ### Settings
 
 | Setting | Default | Notes |
 |---|---|---|
 | `voice` | required | Flam voice id |
-| `language` | `Language.EN` | Pipecat `Language`; mapped to Finesse codes (Odia `ory`, Nepali `npi`, ...) |
+| `language` | `Language.EN` | Pipecat `Language` or a Finesse code; mapped to Finesse codes (Odia `ory`, Nepali `npi`, Egyptian Arabic `ar-EG` → `arz`, Gulf Arabic `ar-AE` → `afb`, ...) |
 | `num_step` | server default (32) | 1-32, quality vs latency |
 | `guidance_scale` | server default (2.0) | 0-10 |
 | `length_scale` | server default (1.0) | speaking rate, higher is slower |
@@ -78,6 +80,10 @@ Voice and language apply per turn: a change takes effect from the next turn.
   with backoff.
 - Each open connection holds one of your plan's concurrent streams until it closes.
 - Errors for one turn (for example `voice_not_found`) end that turn and leave the connection open.
+- If the connection drops mid-turn, or the server cancels a turn, the turn ends with an error
+  instead of going silent, and the next turn reconnects.
+- A slow first audio (a long first sentence, a busy engine) is still played: the service waits up
+  to 10 s (`stop_frame_timeout_s`) before giving up on a turn's audio.
 
 API reference: [Realtime WebSocket](https://docs.finesse.flamapp.ai/voice-api/realtime-websocket).
 

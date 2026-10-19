@@ -6,7 +6,6 @@ Needs FINESSE_API_KEY and FINESSE_VOICE_ID; FINESSE_URL defaults to production.
 import os
 
 import pytest
-
 from pipecat.frames.frames import (
     InterruptionFrame,
     LLMFullResponseEndFrame,
@@ -20,7 +19,9 @@ from pipecat.tests.utils import SleepFrame, run_test
 from pipecat_finesse import FinesseTTSService
 from pipecat_finesse.tts import DEFAULT_URL
 
-pytestmark = pytest.mark.skipif(os.getenv("FINESSE_LIVE") != "1", reason="set FINESSE_LIVE=1 to run")
+pytestmark = pytest.mark.skipif(
+    os.getenv("FINESSE_LIVE") != "1", reason="set FINESSE_LIVE=1 to run"
+)
 
 
 def service() -> FinesseTTSService:

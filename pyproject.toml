@@ -8,8 +8,15 @@ license-files = ["LICENSE"]
 authors = [{ name = "Flam" }]
 keywords = ["pipecat", "tts", "text-to-speech", "voice", "finesse", "indic"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Typing :: Typed",
 ]
 requires-python = ">=3.11"
 dependencies = [
@@ -22,7 +29,9 @@ build-backend = "uv_build"
 
 [project.urls]
 Homepage = "https://finesse.flamapp.ai"
-Documentation = "https://docs.finesse.flamapp.ai/voice-api/realtime-websocket"
+Documentation = "https://docs.finesse.flamapp.ai"
+Repository = "https://github.com/homingos/pipecat-finesse"
+Changelog = "https://github.com/homingos/pipecat-finesse/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -32,3 +41,18 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
 ]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# The rule set Pipecat itself uses.
+select = ["ASYNC", "B", "D", "F", "I", "RUF006", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**/*.py" = ["D", "ASYNC230", "RUF006"]
+"tests/**/*.py" = ["D", "ASYNC230", "RUF006"]
+"**/__init__.py" = ["D104"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

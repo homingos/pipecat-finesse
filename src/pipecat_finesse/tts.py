@@ -11,6 +11,7 @@ turn sends ``finalize: true``, and an interruption sends ``task_cancel`` so the
 server stops synthesizing that turn without dropping the connection.
 """
 
+import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator
@@ -18,8 +19,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from loguru import logger
-from websockets.protocol import State
-
 from pipecat.frames.frames import ErrorFrame, Frame, TTSAudioRawFrame, TTSStoppedFrame
 from pipecat.processors.frame_processor import FrameProcessorSetup
 from pipecat.services.settings import TTSSettings
@@ -27,6 +26,8 @@ from pipecat.services.tts_service import WebsocketTTSService
 from pipecat.transcriptions.language import Language
 from pipecat.utils.tracing.service_decorators import traced_tts
 from pipecat.utils.types import NOT_GIVEN, NotGiven
+from websockets.asyncio.client import ClientConnection
+from websockets.protocol import State
 
 from pipecat_finesse._version import __version__
 
@@ -38,6 +39,12 @@ NATIVE_SAMPLE_RATE = 24000
 
 # Finesse language codes that differ from the base code of Pipecat's Language.
 _LANGUAGE_OVERRIDES = {"ar": "arb", "ne": "npi", "no": "nb", "or": "ory"}
+# Arabic regions with their own Finesse dialect: Egyptian, and Gulf (Khaleeji).
+_ARABIC_REGIONS = {"eg": "arz", "ae": "afb", "kw": "afb", "qa": "afb", "bh": "afb", "om": "afb"}
+
+# Text frames over 1 MiB close the socket. Frames are sent as UTF-8, so a character costs at
+# most 6 bytes (a JSON-escaped control character) and this stays far below the limit.
+_MAX_TEXT_CHARS = 100_000
 
 
 def language_to_finesse_language(language: Language | str) -> str:
@@ -45,10 +52,14 @@ def language_to_finesse_language(language: Language | str) -> str:
 
     Finesse uses base ISO 639 codes (``en``, ``hi``, ``ta``), except where it
     names a macrolanguage member: Arabic ``arb``, Nepali ``npi``, Norwegian
-    ``nb`` and Odia ``ory``.
+    ``nb`` and Odia ``ory``. Egyptian Arabic (``ar-EG``) maps to ``arz`` and
+    Gulf Arabic (``ar-AE``, ``ar-KW``, ``ar-QA``, ``ar-BH``, ``ar-OM``) to
+    ``afb``. Finesse codes such as ``ars`` or ``yue`` pass through unchanged.
     """
     value = language.value if isinstance(language, Language) else str(language)
-    base = value.split("-")[0].lower()
+    base, _, region = value.lower().partition("-")
+    if base == "ar" and region in _ARABIC_REGIONS:
+        return _ARABIC_REGIONS[region]
     return _LANGUAGE_OVERRIDES.get(base, base)
 
 
@@ -87,7 +98,8 @@ class FinesseTTSService(WebsocketTTSService):
     """
 
     Settings = FinesseTTSSettings
-    _settings: Settings
+    # The Settings pattern every Pipecat service uses; the base class types it as TTSSettings.
+    _settings: Settings  # pyright: ignore[reportIncompatibleVariableOverride]
 
     def __init__(
         self,
@@ -129,6 +141,10 @@ class FinesseTTSService(WebsocketTTSService):
         if settings is not None:
             default_settings.apply_update(settings)
 
+        # Every turn ends explicitly (task_done, a failure, a cancel or a dropped connection),
+        # so Pipecat's idle timeout for an audio context is only a backstop. Its 3 s default
+        # would drop a turn whose first audio is slow, e.g. a long first sentence.
+        kwargs.setdefault("stop_frame_timeout_s", 10.0)
         super().__init__(
             push_text_frames=True,
             push_stop_frames=False,
@@ -143,7 +159,7 @@ class FinesseTTSService(WebsocketTTSService):
         self._url = url
         self._idle_flush_ms = idle_flush_ms
         self._client = f"pipecat/{__version__}" + (f" {client_name}" if client_name else "")
-        self._receive_task = None
+        self._receive_task: asyncio.Task[None] | None = None
         # Contexts opened with task_start on the current connection and not yet
         # done, cancelled or failed. The server forgets them on reconnect.
         self._open_contexts: set[str] = set()
@@ -161,25 +177,25 @@ class FinesseTTSService(WebsocketTTSService):
 
     # ---- connection -------------------------------------------------------
 
-    async def setup(self, setup: FrameProcessorSetup):
+    async def setup(self, setup: FrameProcessorSetup) -> None:
         """Set up the service and open the socket early, so the first turn is warm."""
         await super().setup(setup)
         await self._connect()
 
-    async def _connect(self):
+    async def _connect(self) -> None:
         await super()._connect()
         await self._connect_websocket()
         if self._websocket and not self._receive_task:
             self._receive_task = self.create_task(self._receive_task_handler(self._report_error))
 
-    async def _disconnect(self):
+    async def _disconnect(self) -> None:
         await super()._disconnect()
         if self._receive_task:
             await self.cancel_task(self._receive_task)
             self._receive_task = None
         await self._disconnect_websocket()
 
-    async def _connect_websocket(self):
+    async def _connect_websocket(self) -> None:
         try:
             if self._websocket and self._websocket.state is State.OPEN:
                 return
@@ -193,11 +209,13 @@ class FinesseTTSService(WebsocketTTSService):
             self._pending_audio_context = None
             await self._call_event_handler("on_connected")
         except Exception as e:
-            await self.push_error(error_msg=f"Finesse connection error: {_describe(e)}", exception=e)
+            await self.push_error(
+                error_msg=f"Finesse connection error: {_describe(e)}", exception=e
+            )
             self._websocket = None
             await self._call_event_handler("on_connection_error", _describe(e))
 
-    async def _disconnect_websocket(self):
+    async def _disconnect_websocket(self) -> None:
         try:
             await self.stop_all_metrics()
             if self._websocket:
@@ -211,13 +229,13 @@ class FinesseTTSService(WebsocketTTSService):
             self._open_contexts.clear()
             await self._call_event_handler("on_disconnected")
 
-    def _get_websocket(self):
+    def _get_websocket(self) -> ClientConnection:
         if self._websocket:
             return self._websocket
         raise Exception("Websocket not connected")
 
-    async def _send(self, msg: dict[str, Any]):
-        await self._get_websocket().send(json.dumps(msg))
+    async def _send(self, msg: dict[str, Any]) -> None:
+        await self._get_websocket().send(json.dumps(msg, ensure_ascii=False))
 
     # ---- turn lifecycle ---------------------------------------------------
 
@@ -257,17 +275,28 @@ class FinesseTTSService(WebsocketTTSService):
             None: audio arrives on the receive task.
         """
         if not self._settings.voice:
-            yield ErrorFrame(error="Finesse voice not set: pass settings=FinesseTTSService.Settings(voice=...)")
+            yield ErrorFrame(
+                error="Finesse voice not set: pass settings=FinesseTTSService.Settings(voice=...)"
+            )
             return
         try:
             if not self._websocket or self._websocket.state is State.CLOSED:
                 await self._connect()
             try:
-                if context_id in self._open_contexts:
-                    await self._send({"type": "task_continue", "context_id": context_id, "text": text, "finalize": False})
-                else:
-                    await self._send(self._task_start(text, context_id))
-                    self._open_contexts.add(context_id)
+                for i in range(0, len(text), _MAX_TEXT_CHARS):
+                    chunk = text[i : i + _MAX_TEXT_CHARS]
+                    if context_id in self._open_contexts:
+                        await self._send(
+                            {
+                                "type": "task_continue",
+                                "context_id": context_id,
+                                "text": chunk,
+                                "finalize": False,
+                            }
+                        )
+                    else:
+                        await self._send(self._task_start(chunk, context_id))
+                        self._open_contexts.add(context_id)
                 await self.start_tts_usage_metrics(text)
             except Exception as e:
                 yield ErrorFrame(error=f"Finesse send error: {e}")
@@ -279,15 +308,17 @@ class FinesseTTSService(WebsocketTTSService):
         except Exception as e:
             yield ErrorFrame(error=f"Finesse error: {e}")
 
-    async def flush_audio(self, context_id: str | None = None):
+    async def flush_audio(self, context_id: str | None = None) -> None:
         """End the turn: synthesize what's buffered and close the context."""
         flush_id = context_id or self.get_active_audio_context_id()
         if not flush_id or flush_id not in self._open_contexts or not self._websocket:
             return
         logger.trace(f"{self}: finalizing context {flush_id}")
-        await self._send({"type": "task_continue", "context_id": flush_id, "text": "", "finalize": True})
+        await self._send(
+            {"type": "task_continue", "context_id": flush_id, "text": "", "finalize": True}
+        )
 
-    async def on_audio_context_interrupted(self, context_id: str):
+    async def on_audio_context_interrupted(self, context_id: str) -> None:
         """Cancel the interrupted turn on the server; the connection stays open."""
         await self.stop_all_metrics()
         if context_id in self._open_contexts:
@@ -298,40 +329,52 @@ class FinesseTTSService(WebsocketTTSService):
                 logger.debug(f"{self}: task_cancel not sent: {e}")
         await super().on_audio_context_interrupted(context_id)
 
-    async def _update_settings(self, delta: TTSSettings) -> dict[str, Any]:
-        """Apply a settings delta. Voice and language are fixed per context, so a
-        change takes effect from the next turn."""
-        return await super()._update_settings(delta)
-
     # ---- receiving --------------------------------------------------------
 
-    async def _receive_messages(self):
+    async def _receive_messages(self) -> None:
         while True:
-            await self._process_messages()
+            try:
+                await self._process_messages()
+            except Exception:
+                # An abnormal close raises; the base class reconnects with backoff.
+                await self._fail_open_contexts()
+                raise
+            await self._fail_open_contexts()
             # The server closes an idle session after 600 s (session_ended,
             # reason idle); reopen so the next turn doesn't pay for a dial.
             logger.debug(f"{self}: Finesse connection closed, reconnecting")
             await self._connect_websocket()
 
-    async def _process_messages(self):
+    async def _fail_open_contexts(self) -> None:
+        """End the turns still open on a closed connection: the server has forgotten them."""
+        for ctx_id in list(self._open_contexts):
+            self._open_contexts.discard(ctx_id)
+            await self._end_context_with_error(ctx_id, "Finesse connection closed mid-turn")
+
+    async def _process_messages(self) -> None:
         async for message in self._get_websocket():
             if isinstance(message, (bytes, bytearray)):
                 await self._handle_audio(bytes(message))
             else:
                 await self._handle_event(json.loads(message))
 
-    async def _handle_audio(self, audio: bytes):
+    async def _handle_audio(self, audio: bytes) -> None:
         ctx_id, self._pending_audio_context = self._pending_audio_context, None
-        # Audio for a turn that was interrupted (or already removed) is dropped.
-        if not ctx_id or not self.audio_context_available(ctx_id):
+        # Audio for a turn that was interrupted, finished or failed is dropped. An open turn's
+        # audio is always appended, even after Pipecat's idle timeout closed its audio
+        # context (slow first audio, or the LLM pausing mid-turn): append_to_audio_context
+        # recreates the context for the current turn.
+        if not ctx_id or ctx_id not in self._open_contexts:
             return
         rate = self._output_sample_rate()
         if rate != self.sample_rate:
             audio = await self._resampler.resample(audio, rate, self.sample_rate)
-        frame = TTSAudioRawFrame(audio=audio, sample_rate=self.sample_rate, num_channels=1, context_id=ctx_id)
+        frame = TTSAudioRawFrame(
+            audio=audio, sample_rate=self.sample_rate, num_channels=1, context_id=ctx_id
+        )
         await self.append_to_audio_context(ctx_id, frame)
 
-    async def _handle_event(self, msg: dict[str, Any]):
+    async def _handle_event(self, msg: dict[str, Any]) -> None:
         kind = msg.get("type")
         ctx_id = msg.get("context_id")
         if kind == "audio_chunk":
@@ -345,7 +388,11 @@ class FinesseTTSService(WebsocketTTSService):
                 await self.append_to_audio_context(ctx_id, TTSStoppedFrame(context_id=ctx_id))
                 await self.remove_audio_context(ctx_id)
         elif kind == "task_cancelled":
-            self._open_contexts.discard(ctx_id)
+            # Contexts we cancel leave _open_contexts first, so this one was cancelled by the
+            # server and its speech is incomplete.
+            if ctx_id in self._open_contexts:
+                self._open_contexts.discard(ctx_id)
+                await self._end_context_with_error(ctx_id, "Finesse cancelled the turn")
         elif kind == "task_failed":
             self._open_contexts.discard(ctx_id)
             await self._end_context_with_error(ctx_id, f"Finesse task failed: {msg.get('code')}")
@@ -363,7 +410,7 @@ class FinesseTTSService(WebsocketTTSService):
         else:
             logger.debug(f"{self}: ignoring Finesse message type {kind!r}")
 
-    async def _end_context_with_error(self, ctx_id: str | None, error: str):
+    async def _end_context_with_error(self, ctx_id: str | None, error: str) -> None:
         await self.stop_all_metrics()
         await self.push_error(error_msg=error)
         if ctx_id and self.audio_context_available(ctx_id):

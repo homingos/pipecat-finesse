@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx ruff@0.14.0 check src tests examples
+      - run: uvx ruff@0.14.0 format --check src tests examples
+      - run: uv run --with pyright pyright src
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+        # The lowest supported Pipecat and the latest release.
+        pipecat: ["1.12.0", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run unit tests
+        run: |
+          if [ "${{ matrix.pipecat }}" = "latest" ]; then
+            uv run --upgrade-package pipecat-ai pytest -q
+          else
+            uv run --with "pipecat-ai[websocket]==${{ matrix.pipecat }}" pytest -q
+          fi
