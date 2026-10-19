@@ -64,7 +64,7 @@ Create an API key in the [Finesse dashboard](https://finesse.flamapp.ai/dashboar
 | `guidance_scale` | server default (2.0) | 0-10 |
 | `length_scale` | server default (1.0) | speaking rate, higher is slower |
 
-Constructor options: `api_key`, `url` (realtime WebSocket URL), `sample_rate`, `idle_flush_ms`
+Constructor options: `api_key`, `sample_rate`, `idle_flush_ms`
 (how long the server waits before speaking a partial sentence, 200-5000 ms) and `client_name`
 (added to the `X-Finesse-Client` header so you can tell your apps apart in Finesse analytics).
 
