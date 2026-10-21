@@ -33,9 +33,10 @@ from pipecat_finesse._version import __version__
 
 DEFAULT_URL = "wss://fi.production.flamapis.com/flam-voice-svc/api/v1/public/stream"
 SUBPROTOCOL = "finesse.v1"
-# The engine synthesizes at 24 kHz and can only upsample, so lower pipeline
-# rates (16 kHz, 8 kHz telephony) are resampled here.
+# The engine synthesizes at 24 kHz and upsamples above it. Below it, only 8 kHz
+# telephony audio is produced as asked; other lower rates (16 kHz) are resampled here.
 NATIVE_SAMPLE_RATE = 24000
+TELEPHONY_SAMPLE_RATE = 8000
 
 # Finesse language codes that differ from the base code of Pipecat's Language.
 _LANGUAGE_OVERRIDES = {"ar": "arb", "ne": "npi", "no": "nb", "or": "ory"}
@@ -241,6 +242,8 @@ class FinesseTTSService(WebsocketTTSService):
 
     def _output_sample_rate(self) -> int:
         """The rate requested from Finesse: the pipeline's, or 24 kHz to resample down."""
+        if self.sample_rate == TELEPHONY_SAMPLE_RATE:
+            return self.sample_rate
         return max(self.sample_rate, NATIVE_SAMPLE_RATE)
 
     def _task_start(self, text: str, context_id: str) -> dict[str, Any]:

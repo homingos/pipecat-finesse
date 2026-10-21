@@ -204,13 +204,24 @@ async def test_handshake_sends_key_attribution_and_subprotocol():
 
 
 @pytest.mark.asyncio
-async def test_phone_rate_pipeline_requests_24k_and_resamples_down():
+async def test_phone_rate_pipeline_requests_8k_without_resampling():
     fake = FakeFinesse()
     down = await run_turn(fake, one_turn(), out_rate=8000)
-    assert fake.of_type("task_start")[0]["sample_rate"] == 24000
+    assert fake.of_type("task_start")[0]["sample_rate"] == 8000
     audio = [f for f in down if isinstance(f, TTSAudioRawFrame)]
     assert audio and all(f.sample_rate == 8000 for f in audio)
-    # 8 kHz is a third of the samples of the 24 kHz chunks the server sent.
+    # Finesse produces 8 kHz itself, so its audio is passed through untouched.
+    assert all(f.audio == CHUNK for f in audio)
+
+
+@pytest.mark.asyncio
+async def test_16k_pipeline_requests_24k_and_resamples_down():
+    fake = FakeFinesse()
+    down = await run_turn(fake, one_turn(), out_rate=16000)
+    assert fake.of_type("task_start")[0]["sample_rate"] == 24000
+    audio = [f for f in down if isinstance(f, TTSAudioRawFrame)]
+    assert audio and all(f.sample_rate == 16000 for f in audio)
+    # 16 kHz is two thirds of the samples of the 24 kHz chunks the server sent.
     assert sum(len(f.audio) for f in audio) < len(CHUNK) * len(audio)
 
 

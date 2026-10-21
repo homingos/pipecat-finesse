@@ -12,8 +12,8 @@ WebSocket:
   carries across them.
 - **Interruptions.** When the user talks over the bot, the turn is cancelled on the server and its
   remaining audio is dropped; the connection stays open for the next turn.
-- **Any pipeline rate.** Finesse synthesizes at 24 kHz; 16 kHz and 8 kHz (telephony) pipelines are
-  resampled for you.
+- **Any pipeline rate.** 8 kHz telephony pipelines get 8 kHz audio straight from Finesse, with no
+  resampling; other rates below its native 24 kHz, such as 16 kHz, are resampled for you.
 
 Maintained by [Flam](https://finesse.flamapp.ai), the company that builds Finesse.
 
