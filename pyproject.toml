@@ -1,6 +1,6 @@
 [project]
 name = "pipecat-finesse"
-version = "0.1.0"
+version = "0.1.1"
 description = "Finesse text-to-speech for Pipecat"
 readme = "README.md"
 license = "BSD-2-Clause"

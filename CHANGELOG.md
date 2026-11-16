@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.1
+
+- README banner and badges, shown on the PyPI page too.
+
+## 0.1.0
 
 - `FinesseTTSService`: Finesse realtime text-to-speech over the `finesse.v1` WebSocket.
   One context per LLM turn, server-side cancel on interruption, 8 kHz telephony audio straight

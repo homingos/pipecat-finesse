@@ -1,3 +1,17 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homingos/pipecat-finesse/main/.github/assets/banner-pipecat-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/homingos/pipecat-finesse/main/.github/assets/banner-pipecat-light.png">
+  <img alt="Finesse by Flam: text-to-speech plugin for Pipecat" src="https://raw.githubusercontent.com/homingos/pipecat-finesse/main/.github/assets/banner-pipecat-light.png" width="100%">
+</picture>
+
+<p>
+  <a href="https://pypi.org/project/pipecat-finesse/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/pipecat-finesse?style=flat&labelColor=14151A&color=2547F0"></a>
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-14151A?style=flat&labelColor=14151A&color=2547F0">
+  <img alt="Pipecat 1.12+" src="https://img.shields.io/badge/pipecat-1.12%2B-14151A?style=flat&labelColor=14151A&color=2547F0">
+  <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-14151A?style=flat&labelColor=14151A&color=63656A">
+  <a href="https://github.com/homingos/pipecat-finesse/blob/main/LICENSE"><img alt="License: BSD-2-Clause" src="https://img.shields.io/badge/license-BSD--2--Clause-14151A?style=flat&labelColor=14151A&color=63656A"></a>
+</p>
+
 # pipecat-finesse
 
 [Finesse](https://finesse.flamapp.ai) text-to-speech for [Pipecat](https://github.com/pipecat-ai/pipecat).
