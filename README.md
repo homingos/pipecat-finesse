@@ -65,8 +65,8 @@ uv run --with "pipecat-ai[deepgram,openai,runner,silero,webrtc]" examples/voice_
 
 ### Getting a key and a voice
 
-Create an API key in the [Finesse dashboard](https://finesse.flamapp.ai/dashboard) under
-**Settings → API keys**. Pick a voice from the dashboard's voice library, one of your cloned voices,
+Create an API key in the [Finesse dashboard](https://finesse.flamapp.ai/dashboard/developers?tab=api-keys) under
+**Developers → API Keys**. Pick a voice from the dashboard's voice library, one of your cloned voices,
 or list them with the [List voices API](https://docs.finesse.flamapp.ai/voice-api/list-voices); use
 the voice's `id`.
 
