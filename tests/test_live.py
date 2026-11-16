@@ -74,3 +74,26 @@ async def test_live_phone_rate_and_interruption():
     assert audio and all(f.sample_rate == 8000 for f in audio)
     errors = [f for f in up if f.__class__.__name__ == "ErrorFrame"]
     assert not errors, errors
+
+
+@pytest.mark.asyncio
+async def test_live_16k_pipeline_is_resampled():
+    # Finesse has no 16 kHz output: the service asks for 24 kHz and resamples down itself.
+    down, up = await run_test(
+        service(),
+        frames_to_send=[
+            LLMFullResponseStartFrame(),
+            LLMTextFrame("Thanks for waiting. "),
+            LLMTextFrame("Your table for two is booked for seven tonight."),
+            LLMFullResponseEndFrame(),
+            SleepFrame(8),
+        ],
+        pipeline_params=PipelineParams(audio_out_sample_rate=16000),
+        start_timeout=90,
+    )
+    audio = [f for f in down if isinstance(f, TTSAudioRawFrame)]
+    assert audio and all(f.sample_rate == 16000 for f in audio)
+    seconds = sum(len(f.audio) for f in audio) / 2 / 16000
+    assert seconds > 1.5, f"only {seconds:.2f}s of audio"
+    errors = [f for f in up if f.__class__.__name__ == "ErrorFrame"]
+    assert not errors, errors

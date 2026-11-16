@@ -13,4 +13,6 @@
 - Egyptian Arabic (`ar-EG`) maps to `arz` and Gulf Arabic (`ar-AE`, `ar-KW`, `ar-QA`, `ar-BH`,
   `ar-OM`) to `afb`; Finesse codes such as `ars` and `yue` pass through.
 - Text is sent as UTF-8 and split below the 1 MiB frame limit.
-- Tested with Pipecat 1.12 and 1.13.
+- Works with Pipecat 1.16, which removed the TTS base class's resampler: 16 kHz pipelines now
+  use the service's own stream resampler (before, they failed on the first audio).
+- Tested with Pipecat 1.12 and 1.16.

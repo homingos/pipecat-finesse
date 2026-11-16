@@ -18,7 +18,6 @@ import { CommunityMaintained } from "/snippets/community-maintained.mdx";
 WebSocket. Use it when your voice agent needs a fast, natural voice in English or an Indian
 language, or a voice cloned from your own recording.
 
-- About 0.4 seconds to first audio on the production API.
 - Each LLM turn is one Finesse context, so prosody carries across sentences.
 - On an interruption, the turn is cancelled on the server and the connection stays open.
 - Works at any pipeline sample rate: Finesse synthesizes at 24 kHz and the service resamples for
@@ -180,5 +179,5 @@ tts = FinesseTTSService(
 
 ## Compatibility
 
-Last tested with Pipecat v1.12.0 (`pipecat-ai>=1.12,<2`). See the
+Last tested with Pipecat v1.16.0 (`pipecat-ai>=1.12,<2`). See the
 [changelog](https://github.com/homingos/pipecat-finesse/blob/main/CHANGELOG.md) for updates.

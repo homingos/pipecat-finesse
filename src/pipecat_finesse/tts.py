@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from loguru import logger
+from pipecat.audio.utils import create_stream_resampler
 from pipecat.frames.frames import ErrorFrame, Frame, TTSAudioRawFrame, TTSStoppedFrame
 from pipecat.processors.frame_processor import FrameProcessorSetup
 from pipecat.services.settings import TTSSettings
@@ -159,6 +160,8 @@ class FinesseTTSService(WebsocketTTSService):
         self._api_key = key
         self._url = url
         self._idle_flush_ms = idle_flush_ms
+        # Our own resampler for 16 kHz pipelines: Pipecat 1.16 dropped the base class's.
+        self._finesse_resampler = create_stream_resampler()
         self._client = f"pipecat/{__version__}" + (f" {client_name}" if client_name else "")
         self._receive_task: asyncio.Task[None] | None = None
         # Contexts opened with task_start on the current connection and not yet
@@ -371,7 +374,7 @@ class FinesseTTSService(WebsocketTTSService):
             return
         rate = self._output_sample_rate()
         if rate != self.sample_rate:
-            audio = await self._resampler.resample(audio, rate, self.sample_rate)
+            audio = await self._finesse_resampler.resample(audio, rate, self.sample_rate)
         frame = TTSAudioRawFrame(
             audio=audio, sample_rate=self.sample_rate, num_channels=1, context_id=ctx_id
         )

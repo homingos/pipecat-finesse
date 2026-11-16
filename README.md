@@ -19,7 +19,7 @@ Maintained by [Flam](https://finesse.flamapp.ai), the company that builds Finess
 
 ## Compatibility
 
-Tested with Pipecat v1.12.0 and v1.13.0 (`pipecat-ai>=1.12,<2`). See the [changelog](CHANGELOG.md) for updates.
+Tested with Pipecat v1.12.0 and v1.16.0 (`pipecat-ai>=1.12,<2`). See the [changelog](CHANGELOG.md) for updates.
 
 ## Install
 

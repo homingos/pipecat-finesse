@@ -1,6 +1,7 @@
 # Pipecat community listing: submission kit
 
-Process from Pipecat's `COMMUNITY_INTEGRATIONS.md` (checked 15 Oct 2026). Our code stays in our
+Process from Pipecat's `COMMUNITY_INTEGRATIONS.md` (checked 15 Oct 2026, re-checked 16 Nov 2026:
+steps unchanged). Our code stays in our
 repo; the listing is a PR to https://github.com/pipecat-ai/docs.
 
 ## Before opening the PR
@@ -11,6 +12,10 @@ repo; the listing is a PR to https://github.com/pipecat-ai/docs.
 - [ ] Demo video (30-60 s) recorded: the example agent speaking, and the user interrupting it
       mid-sentence so it stops and answers the new question.
 - [ ] Joined the Pipecat Discord: https://discord.gg/pipecat
+- [ ] Decide the badge: their template uses a GitHub username for `maintainer` and its GitHub URL
+      for `maintainerUrl`; `finesse.mdx` uses "Flam" and the Finesse site.
+- [ ] Any latency figure on the page is measured on production first (the old "about 0.4 s" line
+      was removed on 16 Nov 2026 because its source couldn't be traced).
 
 ## Changes in the fork of pipecat-ai/docs
 
@@ -46,7 +51,7 @@ repo; the listing is a PR to https://github.com/pipecat-ai/docs.
 > - `FinesseTTSService` (`WebsocketTTSService`) over the Finesse realtime WebSocket: one context per
 >   LLM turn, server-side cancel on interruption, resampling for 8/16 kHz pipelines.
 > - 60 languages, including 22 Indian languages, and cloned voices.
-> - Tested with Pipecat v1.12.0.
+> - Tested with Pipecat v1.12.0 and v1.16.0.
 >
 > Demo video: <link>
 
