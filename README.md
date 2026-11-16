@@ -101,15 +101,10 @@ Voice and language apply per turn: a change takes effect from the next turn.
 
 API reference: [Realtime WebSocket](https://docs.finesse.flamapp.ai/voice-api/realtime-websocket).
 
-## Development
+## Contributing
 
-```bash
-uv sync
-uv run pytest                    # unit tests against a fake server
-FINESSE_LIVE=1 FINESSE_API_KEY=... FINESSE_VOICE_ID=... \
-  FINESSE_URL=<non-production realtime URL> \
-  uv run pytest tests/test_live.py
-```
+See [CONTRIBUTING.md](https://github.com/homingos/pipecat-finesse/blob/main/CONTRIBUTING.md) for
+setup, the checks CI runs, and live tests.
 
 ## License
 

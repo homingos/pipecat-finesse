@@ -3,6 +3,7 @@
 ## 0.1.1
 
 - README banner and badges, shown on the PyPI page too.
+- Development and test instructions moved from the README to `CONTRIBUTING.md`.
 
 ## 0.1.0
 
